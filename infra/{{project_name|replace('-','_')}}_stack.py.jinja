@@ -1,0 +1,110 @@
+"""The deployment CDK-script for the lambda/app"""
+
+from constructs import Construct
+from aws_cdk import (
+    Stack,
+    aws_lambda as _lambda,
+    aws_apigateway as apigw,
+)
+{% if lambda_type == 'layered' %}
+from aws_cdk import Duration
+{% endif %}
+{% if lambda_type == 'imaged' %}
+from aws_cdk import Duration
+from aws_cdk import Size
+from aws_cdk import aws_iam as iam
+{% endif %}
+class {{project_name | to_camel}}Stack(Stack):
+    """CDK (infra as code) deployment of lambda and apigateway endpoint for same"""
+
+    # pylint: disable=redefined-builtin
+    def __init__(self, scope: Construct, id: str, stage: str, **kwargs) -> None:
+        super().__init__(scope, id, **kwargs)
+        lambda_name=f'{{lambda_name}}-{stage}'
+        lambda_func = self.create_lambda(lambda_name)
+
+        apigw.LambdaRestApi(
+            self, 'Endpoint', # NOTE: I don't like this name, could we use construct id?
+            handler=lambda_func,
+            deploy_options=apigw.StageOptions(stage_name=stage)
+        )
+
+    def create_lambda(self, name: str) -> _lambda.Function:
+        '''defines an aws lambda resource'''
+{% if lambda_type == 'regular' %}
+        # from simple source code
+        runtime = _lambda.Runtime.PYTHON_3_12
+        lambda_func = _lambda.Function(
+            self, name,
+            runtime=runtime,
+            code=_lambda.Code.from_asset('lambda_source'),
+            handler='handler.handler',
+        )
+        return lambda_func
+{% endif %}{% if lambda_type == 'layered' %}
+        # from source code and layers
+
+        runtime = _lambda.Runtime.PYTHON_3_12
+        pillow_layer = _lambda.LayerVersion(self, "PillowLayer",
+            code=_lambda.Code.from_asset("layers/klayers-pillow.zip"),
+            compatible_runtimes=[runtime],
+            description="Image needs me"
+        )
+
+        poppler_layer = _lambda.LayerVersion(self, "PopplerLayer",
+            code=_lambda.Code.from_asset("layers/poppler.zip"),
+            compatible_runtimes=[runtime],
+            description="pdf2image needs me"
+        )
+
+        ocr_lambda_layer = _lambda.LayerVersion(self, "TessieOCRLayer",
+            code=_lambda.Code.from_asset("layers/tessie5/layer"),
+            compatible_runtimes=[runtime],
+            description="tesseract-ocr parser layer"
+        )
+
+        timeout = Duration.minutes(15)
+
+        lambda_func = _lambda.Function(
+            self,
+            name,
+            runtime=runtime,
+            code=_lambda.Code.from_asset('lambda_source'),
+            # Attach the layers to the function
+            layers=[pillow_layer, poppler_layer, ocr_lambda_layer],
+            handler='handler.handler',
+            timeout=timeout,
+            architecture=_lambda.Architecture.X86_64,
+            memory_size=512
+        )
+        return lambda_func
+{% endif %}{% if lambda_type == 'imaged' %}
+        role = self.create_lambda_role()
+        memsize = 10240
+        return _lambda.DockerImageFunction(
+            self,
+            name,
+            code=_lambda.DockerImageCode.from_image_asset(
+                build_args={'BUILDKIT_INLINE_CACHE': "1"},
+                cache_disabled=False,
+                directory='lambda_source'),
+            role=role,
+            memory_size=memsize,
+            ephemeral_storage_size=Size.mebibytes(memsize),
+            timeout=Duration.minutes(15),
+            # best to go with only 1 during debug of a new heavyweight service
+            reserved_concurrent_executions=1,
+        )
+
+    def create_lambda_role(self):
+        '''create the role for the ECR imaged lambda'''
+        # Define the IAM role for the Lambda function
+        lambda_role = iam.Role(self, "LambdaExecutionRole",
+            assumed_by=iam.ServicePrincipal("lambda.amazonaws.com"),
+            managed_policies=[
+                # pylint: disable=line-too-long
+                iam.ManagedPolicy.from_aws_managed_policy_name("service-role/AWSLambdaBasicExecutionRole")
+            ]
+        )
+        return lambda_role
+{% endif %}

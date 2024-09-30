@@ -1,0 +1,113 @@
+"""The trunk-branch CI/CD pipeline"""
+
+from aws_cdk import (
+    CfnOutput,
+    Environment,
+    Stack,
+    aws_codecommit as codecommit,
+    pipelines as pipelines,
+    aws_s3 as s3,
+    aws_kms as kms,
+{% if lambda_type == 'imaged' %}
+    aws_codebuild as codebuild
+{% endif %}
+)
+from constructs import Construct
+from infra.stages import Deployment
+
+# CONFIGS that someday should be injected from external source...
+# KUBIO
+SHARED_DEPLOY_BUCKET_ARN = "arn:aws:s3:::itc-devops-artifact-383996144866-us-east-1"
+KMS_KEY_ARN='arn:aws:kms:us-east-1:880328010559:key/e60b67d0-60a7-4b68-a5c3-40cd41e3de5b'
+PIPELINE_ACCOUNT = '383996144866'
+PIPELEINE_REGION = 'us-east-1'
+
+DEV_CONFIG = { 'NAME': 'DEV',
+    'ACCOUNT': '{{first_stage_deploy_account}}',
+    'REGION': 'us-east-1',
+}
+
+class TrunkPipelineStack(Stack):
+    """The pipeline creation via CDK"""
+
+    # pylint: disable=redefined-builtin
+    def __init__(self, scope: Construct, id: str, **kwargs) -> None:
+        super().__init__(scope, id,
+            env=Environment(account=PIPELINE_ACCOUNT, region=PIPELEINE_REGION), **kwargs)
+
+        repo, source = self.setup_code_source(
+            repo_name="{{project_name}}", repo_branch="main"
+        )
+
+        synth = pipelines.ShellStep(
+            "Synth",
+            input=source,
+            install_commands=["make warming"],
+            commands=["make build"],
+        )
+
+        pipeline = pipelines.CodePipeline(
+            self,
+            "pipeline",
+            artifact_bucket=self.get_shared_deploy_bucket(),
+            cross_account_keys=True,
+            synth=synth,
+{% if lambda_type == 'imaged' %}
+            asset_publishing_code_build_defaults=pipelines.CodeBuildOptions(
+                # Set default properties here for asset publishing
+                build_environment=codebuild.BuildEnvironment(
+                    privileged=True,  # Enable Docker layer caching
+                ),
+                cache=codebuild.Cache.local(
+                    codebuild.LocalCacheMode.DOCKER_LAYER
+                )
+            )
+{% endif %}
+        )
+
+        # NOTE: change this to DEV, QA/STAGING, PROD
+        deploy_stage = Deployment(self, DEV_CONFIG["NAME"], DEV_CONFIG)
+        # This is a set of parallel pre-checks before allowing deployment
+        pipeline.add_stage(
+            deploy_stage,
+            pre=[
+                pipelines.CodeBuildStep(
+                    "Linting",
+                    install_commands=["make warming"],
+                    commands=["make linting"],
+                ),
+                pipelines.CodeBuildStep(
+                    "UnitTest",
+                    install_commands=["make warming"],
+                    commands=["make unittest"],
+                ),
+            ],
+        )
+        # NOTE: can add a POST deploy step to do validation/smoke-testing
+
+        # Output
+        CfnOutput(
+            self, "RepositoryName", value=repo.repository_name
+        )  # what does this do?
+
+    def setup_code_source(
+        self, repo_name, repo_branch
+        ) -> tuple[codecommit.IRepository, pipelines.CodePipelineSource]:
+        '''isolates codecommit specifics, in case we migrate to a different git provider'''
+        repo = codecommit.Repository.from_repository_name(
+            self, "App", repo_name
+        )
+
+        source = pipelines.CodePipelineSource.code_commit(repo, repo_branch)
+
+        return (repo, source)
+
+    def get_shared_deploy_bucket(self) -> s3.IBucket:
+        '''we don't want CDK to proliferate extra buckets and keys'''
+        preexisting_bucket = s3.Bucket.from_bucket_attributes(self,
+            "shared-bucket",
+            bucket_arn=SHARED_DEPLOY_BUCKET_ARN,
+            encryption_key=kms.Key.from_key_arn(self, 'BucketKey',
+                key_arn=KMS_KEY_ARN)
+        )
+        return preexisting_bucket

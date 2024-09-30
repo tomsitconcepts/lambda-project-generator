@@ -1,0 +1,12 @@
+aws-cdk-lib==2.150.0
+constructs>=10.0.0,<11.0.0
+pytest==7.4.3
+pylint
+urllib3==2.2.2
+{% if lambda_type == 'layered' %}
+pytesseract
+pdf2image
+{% endif %}
+{% if lambda_type == 'imaged' %}
+requests
+{% endif %}

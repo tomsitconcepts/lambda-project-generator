@@ -1,0 +1,28 @@
+*.swp
+package-lock.json
+.pytest_cache
+*.egg-info
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# CDK Context & Staging files
+.cdk.staging/
+cdk.out/
+
+{% if lambda_type == 'layered' %}
+layers/tessie5/layer/*
+layers/tessie5/tesseract
+!layers/tessie5/layer/do_not_delete_me.txt
+{% endif %}

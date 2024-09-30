@@ -1,0 +1,69 @@
+# Pipeline sequence
+
+.NOTPARALLEL:
+
+## The warming step pre-warms the evironment with:
+warming:
+	@echo "warming the project building env"
+	node --version
+	npm --version
+	npm i -g aws-cdk
+	python -m pip install -r requirements.txt
+
+## This step builds applications and creates deliverable items
+build:
+{% if lambda_type == 'layered' %}
+	./scripts/build_tessie.sh
+{% endif %}
+	cdk context --clear
+	cdk ls
+	cdk synth
+	python -m pylint infra
+
+{% if lambda_type == 'layered' %}
+# can't name an action the same as a directory, or else you get 'already done'
+tessie_the_script:
+	./scripts/build_tessie.sh
+{% endif %}
+
+## This step checks the code base with security tools
+security:
+	pip install pip-audit
+	pip-audit
+
+## This step executes unit tests for the code base
+unittest:
+	python -m pytest tests -s
+
+## This step executes linting for the code base
+linting:
+	python -m pylint app.py infra lambda_source tests
+
+## Cleanup the whole environment. Remove all temporary files
+clean:
+	rm -rf cdk.out
+{% if lambda_type == 'layered' %}
+	rm -rf layers/tessie5/tesseract
+	rm -rf layers/tessie5/layer
+	mkdir layers/tessie5/layer
+	touch layers/tessie5/layer/do_not_delete_me.txt
+{% endif %}
+
+## FIRST TIME STUFF BELOW HERE: PART OF AUTOMATION
+## YOU CAN REMOVE AFTER SUCCESSFUL FIRST UPLOAD/BUILD/DEPLOY
+
+init:
+	python -m venv .venv
+	. .venv/bin/activate && python -m pip install -r requirements.txt && python -m pylint infra lambda_source tests
+	cdk synth
+
+commit:
+	scripts/create-codecommit-repo.sh {{generator_version}} {{user_name}}
+
+deploypipeline:
+	cdk deploy --require-approval never {{project_name | to_camel}}-TrunkPipelineStack
+
+tagtrunk:
+	scripts/tag-trunk.sh {{project_name}} {{project_name | to_camel}}-TrunkPipelineStack
+
+onetime: init unittest commit deploypipeline tagtrunk

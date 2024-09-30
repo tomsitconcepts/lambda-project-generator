@@ -1,0 +1,25 @@
+"""Unit tests for the {{lambda_name}} lambda."""
+
+from lambda_source.{{lambda_name|replace('-','_')}} import {{lambda_name | to_camel}}LambdaApp
+from lambda_source.svcs.logging_services_adapter import ILoggingServiceAdapter
+
+# pylint: disable=too-few-public-methods
+class MockLoggingSvc(ILoggingServiceAdapter):
+    """A mock logging svc."""
+
+    # pylint: disable=no-self-argument
+    def info(self, msg, *args, **kwargs):
+        """just print"""
+        print(msg)
+
+def mock_app_composer() -> {{lambda_name | to_camel}}LambdaApp:
+    """create the app with the mock logging svc."""
+    logger = MockLoggingSvc()
+    mocked_app = {{lambda_name | to_camel}}LambdaApp(logger)
+    return mocked_app
+
+def test_{{lambda_name|replace('-','_')}}():
+    """test the app."""
+    app = mock_app_composer()
+    result = app.process(None)
+    assert result['body'] == "Hello world!"

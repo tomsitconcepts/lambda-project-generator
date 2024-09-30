@@ -1,0 +1,56 @@
+"""something"""
+
+import os
+import pytesseract
+import pdf2image
+from PIL import Image
+from PIL import ImageEnhance
+from PIL import ImageFilter
+
+from svcs.logging_services_adapter import ILoggingServiceAdapter
+
+# pylint: disable=too-few-public-methods
+class ITesseractAdapter():
+    """something"""
+
+    def process_text(self, resume_doc: bytes):
+        """something"""
+
+# pylint: disable=too-few-public-methods
+class TesseractAdapter(ITesseractAdapter):
+    """Resume OCR Parsing (image to text) class."""
+
+    def __init__(self,
+                 logging_service: ILoggingServiceAdapter) -> None:
+        self._logger = logging_service
+        self._logger.info("INFO %s", os.getenv('AWS_EXECUTION_ENV'))
+
+        if os.getenv('AWS_EXECUTION_ENV') is not None:
+            os.environ['LD_LIBRARY_PATH'] = '/opt/lib'
+            os.environ['TESSDATA_PREFIX'] = '/opt/tessdata'
+            pytesseract.pytesseract.tesseract_cmd = '/opt/bin/tesseract'
+
+    def process_text(self, resume_doc: bytes):
+        '''reads a pdf stream of bytes'''
+        pages = pdf2image.convert_from_bytes(resume_doc)
+
+        extracted_text = []
+        for page in pages:
+            text = self.extract_text_from_image(page)
+            self._logger.info("INFO more text = %s", text)
+            extracted_text.append(text)
+
+        # converts the list into one long string
+        text = "\n\n".join([str(el) for el in extracted_text])
+        return text
+
+    def extract_text_from_image(self, image: Image):
+        '''something'''
+        # Preprocess image
+        image = image.filter(ImageFilter.SHARPEN)  # Apply sharpening filter
+
+        # Enhance image contrast
+        enhancer = ImageEnhance.Contrast(image)
+        image = enhancer.enhance(2)  # Increase contrast
+        text = pytesseract.image_to_string(image, lang='eng')
+        return text

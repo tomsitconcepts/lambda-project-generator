@@ -1,0 +1,18 @@
+"""Unit tests for CDK that deploy the {{lambda_name}} lambda."""
+
+import aws_cdk as core
+from aws_cdk import assertions
+from infra.{{project_name|replace('-','_')}}_stack import {{project_name | to_camel}}Stack
+
+def test_lambda_created():
+    """A simple test: just counts the number of lambdas output from this stack."""
+    app = core.App()
+    stack = {{project_name | to_camel}}Stack(app, "{{project_name}}-stack", "DEV")
+    template = assertions.Template.from_stack(stack)
+
+    template.resource_count_is("AWS::Lambda::Function", 1)
+
+    template.has_resource_properties("AWS::ApiGateway::Stage",
+        assertions.Match.object_like({
+            "StageName": "DEV"
+    }))

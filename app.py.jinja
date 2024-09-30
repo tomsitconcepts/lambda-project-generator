@@ -1,0 +1,16 @@
+"""The top-level CDK-script for the pipelines (and the app they deploy)"""
+
+import aws_cdk as cdk
+
+from infra.trunk_pipeline_stack import TrunkPipelineStack
+
+app = cdk.App()
+
+trunk = TrunkPipelineStack(app, "{{project_name | to_camel}}-TrunkPipelineStack")
+cdk.Tags.of(trunk).add("DEVELOPER", "{{user_name}}")
+cdk.Tags.of(trunk).add("PROJECT", "codecommit://{{project_name}}")
+cdk.Tags.of(trunk).add(
+    "PROJECT_GENERATOR",
+    "codecommit://lambda-project-generator --branch v{{generator_version}}")
+
+app.synth()

@@ -1,0 +1,91 @@
+"""Adapter for 3rd party ollama service"""
+
+# import json
+import os
+import subprocess
+import time
+#import traceback
+
+from svcs.logging_services_adapter import ILoggingServiceAdapter
+
+import requests
+
+BASE_API_URL = "http://localhost:11434"  # default
+
+# pylint: disable=too-few-public-methods
+class IOllamaClientAdapter():
+    """interface for type-safety"""
+
+    def generate(self, prompt: dict) -> str:
+        '''dont be empty'''
+
+# we prefer to wrap 3rd party things/services in adapters
+# and inject them at composition time
+# so they can be mocked for unit testing of our app
+# pylint: disable=too-few-public-methods
+class OllamaClientAdapter(IOllamaClientAdapter):
+    """Loose-coupling FTW"""
+
+    def __init__(self, logging_service: ILoggingServiceAdapter, temp_override):
+        self._logger = logging_service
+        self._temp_override = temp_override
+        self.start_server()
+
+    def generate(self, prompt: dict) -> str:
+        '''generate api'''
+
+        if self._temp_override != 'IGNORE':
+            prompt['options']['temperature'] = float(self._temp_override)
+            self._logger.info("INFO: GEN override = %s", prompt)
+
+        api_url = BASE_API_URL + "/api/generate"
+        # pylint: disable=missing-timeout
+        api_response = requests.post(api_url, json=prompt)
+        response_dict = api_response.json()
+        print(f"status from GEN API: status={api_response.status_code}")
+        print(f"Response from GEN API: {response_dict}")
+
+        if api_response.status_code != 200:
+            # pylint: disable=line-too-long
+            raise ValueError(f"GEN API request failed with status code {api_response.status_code}: {api_response.reason}")
+
+        content = str(response_dict['response'].strip())
+        self._logger.info("INFO: GEN ollama response message content = %s", content)
+        return content
+
+    # NOTE: if this takes longer than 2 minutes
+    # its prob because of networking model-download issues
+    # we could pre-download and cache in s3 bucket for reuse
+    # for more consistent performance
+    def warmup(self):
+        '''call generate api with model to preload and keep alive'''
+        api_url = BASE_API_URL + "/api/generate"
+        # pylint: disable=missing-timeout
+        data = {
+            "model": 'llama3:instruct',
+            "keep_alive": -1,
+        }
+        api_response = requests.post(api_url, json=data)
+        response_dict = api_response.json()
+        print(f"status from GEN warmup API: status={api_response.status_code}")
+        print(f"Response from GEN warmup API: {response_dict}")
+
+        if api_response.status_code != 200:
+            # pylint: disable=line-too-long
+            raise ValueError(f"GEN warmup API request failed with status code {api_response.status_code}: {api_response.reason}")
+
+    def start_server(self):
+        '''start the Ollama server'''
+        print(f"TOM processes (BEFORE): {os.system('ps aux')}")
+        print("Starting Ollama server...")
+        # pylint: disable=consider-using-with
+        output = subprocess.Popen(["ollama", "serve"])
+        print(f"TOM ollama startup output : {output}")
+        # wait for the server to start
+        time.sleep(15)
+        print("... Ollama server started/stable yet?")
+        print(f"TOM processes (after 15): {os.system('ps aux')}")
+        self.warmup()
+        time.sleep(5)
+        print("... Ollama server more stable?")
+        print(f"TOM processes (after warmup and 5): {os.system('ps aux')}")

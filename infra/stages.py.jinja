@@ -1,0 +1,28 @@
+"""A deployment stage wrapper"""
+
+from aws_cdk import Environment
+from aws_cdk import Stage
+import aws_cdk as cdk
+from constructs import Construct
+from infra.{{project_name|replace('-','_')}}_stack import {{project_name | to_camel}}Stack
+
+class Deployment(Stage):
+    """The lambda/app stack deployment linked into the pipeline"""
+
+    # pylint: disable=redefined-builtin
+    def __init__(self, scope: Construct, id: str, config: dict, **kwargs) -> None:
+        super().__init__(scope, id,
+            env=Environment(account=config['ACCOUNT'], region=config['REGION']), **kwargs)
+
+        # pylint: disable=line-too-long
+        {{project_name|replace('-','_')}} = {{project_name | to_camel}}Stack(
+            self,
+            "{{project_name | to_camel}}Stack", id)
+        cdk.Tags.of({{project_name|replace('-','_')}}).add("DEVELOPER", "{{user_name}}")
+        # pylint: disable=line-too-long
+        cdk.Tags.of({{project_name|replace('-','_')}}).add(
+            "PROJECT",
+            "codecommit://{{project_name}}")
+        cdk.Tags.of({{project_name|replace('-','_')}}).add(
+            "PROJECT_GENERATOR",
+            "codecommit://lambda-project-generator --branch v{{generator_version}}")

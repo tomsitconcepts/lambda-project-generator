@@ -1,0 +1,20 @@
+"""{{lambda_name|to_camel}} serverless app."""
+
+from svcs.logging_services_adapter import ILoggingServiceAdapter
+
+# pylint: disable=too-few-public-methods
+class {{lambda_name | to_camel}}LambdaApp:
+    """{{lambda_name|to_camel}} class."""
+
+    def __init__(self, logging_service: ILoggingServiceAdapter) -> None:
+        self._logger = logging_service
+
+    # pylint: disable=unused-argument
+    def process(self, event):
+        """YOUR CODE GOES HERE"""
+        self._logger.info("Helloing world")
+        return {
+            "statusCode": 200,
+            "headers": {"Content-Type": "text/plain"},
+            "body": "Hello world!"
+        }

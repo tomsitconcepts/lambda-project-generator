@@ -1,0 +1,17 @@
+#!/bin/bash
+#
+# Purpose: builds a minimal tesseract lambda layer zip file
+#
+# build tesseract zip for lambda via a dockerfile
+cd layers/tessie5
+docker build -t tesseract .
+mkdir tesseract
+docker run -v $PWD/tesseract:/tmp/build tesseract sh /tmp/build_tesseract.sh
+# create the layer from the tesseract zip
+unzip tesseract/tesseract.zip -d layer
+# 
+mkdir -p layer/python/lib/python3.12/site-packages/
+pip install pytesseract -t layer/python/lib/python3.12/site-packages/
+pip install pdf2image -t layer/python/lib/python3.12/site-packages/
+rm -rf layer/python/lib/python3.12/site-packages/pillow*
+rm -rf layer/python/lib/python3.12/site-packages/PIL

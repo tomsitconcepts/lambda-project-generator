@@ -1,0 +1,15 @@
+"""Module for poor-man's DI (Dependency Injection)."""
+
+from svcs.logging_services_adapter import LoggingServiceAdapter
+from {{lambda_name|replace('-','_')}} import {{lambda_name | to_camel}}LambdaApp
+
+# DI 101: prefer the approach of separating the
+# composition of the app (e.g. initing and connecting its 3rd party services)
+# from app processing.
+# So we INJECT the services that our app needs (is DEPENDENT on).
+# This loose-coupling/abstraction approach prepares our code for the challenges as it gets bigger
+# (maintainability, readability, resusability, extensability, testability)
+def compose() -> {{lambda_name | to_camel}}LambdaApp:
+    """function creates adapters for 3rd party services and injects them into app """
+    logging = LoggingServiceAdapter()
+    return {{lambda_name | to_camel}}LambdaApp(logging)
