@@ -5,7 +5,7 @@
 # 
 # TODO: figure out how to get creds from local environment instead...
 USERNAME=tmoeller-pickup
-TOKEN=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
+TOKEN="<INSERT YOUR SECRET PERSONAL TOKEN HERE>"
 # TODO: change this to the real shared one
 ORG=tomsitconcepts
 #
