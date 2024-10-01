@@ -6,7 +6,7 @@
 # $1 = name of project
 # 
 
-GENERATOR_VERSION="1.1.0"
+GENERATOR_VERSION="1.1.2"
 pip install copier --quiet
 pip install jinja2-strcase --quiet
 # build input
@@ -24,7 +24,7 @@ echo "exec dir = $EXEC_DIR"
 # then obv remove before you do
 #   git tag -a v1.X.Y -m "version 1.X.Y"
 #   git push origin --tags
-copier copy -r HEAD --trust --data-file input.yml $EXEC_DIR $1
+copier copy --trust --data-file input.yml $EXEC_DIR $1
 cd $1
 CURRENT_DIR=$(pwd)
 echo "pwd = $CURRENT_DIR"

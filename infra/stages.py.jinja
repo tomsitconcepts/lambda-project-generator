@@ -22,7 +22,7 @@ class Deployment(Stage):
         # pylint: disable=line-too-long
         cdk.Tags.of({{project_name|replace('-','_')}}).add(
             "PROJECT",
-            "codecommit://{{project_name}}")
+            "https://github.com/tomsitconcepts/{{project_name}}")
         cdk.Tags.of({{project_name|replace('-','_')}}).add(
             "PROJECT_GENERATOR",
-            "codecommit://lambda-project-generator --branch v{{generator_version}}")
+            "https://github.com/tomsitconcepts/lambda-project-generator --branch v{{generator_version}}")

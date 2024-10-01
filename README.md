@@ -8,7 +8,7 @@ The goal is to: “make the right things easy”. (i.e. standardization)
 Moreover this will increase both the speed and quality of our work.
 
 
-[How do I use it?](https://useitc.atlassian.net/wiki/spaces/CINO/pages/239009793/Hello-World+python+lambda)
+[How do I use it?](https://useitc.atlassian.net/wiki/spaces/CINO/pages/368476161/GitHUB+version+of+Hello-World+python+lambda+project+GENERATOR)
 
 
 ## Historical

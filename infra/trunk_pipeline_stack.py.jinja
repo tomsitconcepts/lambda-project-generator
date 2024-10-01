@@ -1,11 +1,11 @@
 """The trunk-branch CI/CD pipeline"""
 
 from aws_cdk import (
-    CfnOutput,
     Environment,
     Stack,
-    aws_codecommit as codecommit,
-    pipelines as pipelines,
+    pipelines,
+    aws_ssm as ssm,
+    aws_iam as iam,
     aws_s3 as s3,
     aws_kms as kms,
 {% if lambda_type == 'imaged' %}
@@ -15,12 +15,13 @@ from aws_cdk import (
 from constructs import Construct
 from infra.stages import Deployment
 
-# CONFIGS that someday should be injected from external source...
 # KUBIO
+# tried using ssm.StringParameter.value_from_lookup() for these 2,
+# but did not work: too much value checking going on, even Lazy.string did not help
 SHARED_DEPLOY_BUCKET_ARN = "arn:aws:s3:::itc-devops-artifact-383996144866-us-east-1"
 KMS_KEY_ARN='arn:aws:kms:us-east-1:880328010559:key/e60b67d0-60a7-4b68-a5c3-40cd41e3de5b'
 PIPELINE_ACCOUNT = '383996144866'
-PIPELEINE_REGION = 'us-east-1'
+PIPELINE_REGION = 'us-east-1'
 
 DEV_CONFIG = { 'NAME': 'DEV',
     'ACCOUNT': '{{first_stage_deploy_account}}',
@@ -33,10 +34,16 @@ class TrunkPipelineStack(Stack):
     # pylint: disable=redefined-builtin
     def __init__(self, scope: Construct, id: str, **kwargs) -> None:
         super().__init__(scope, id,
-            env=Environment(account=PIPELINE_ACCOUNT, region=PIPELEINE_REGION), **kwargs)
+            env=Environment(account=PIPELINE_ACCOUNT, region=PIPELINE_REGION), **kwargs)
 
-        repo, source = self.setup_code_source(
-            repo_name="{{project_name}}", repo_branch="main"
+        # https://docs.aws.amazon.com/cdk/v2/guide/get_ssm_value.html
+        github_codestar_arn = ssm.StringParameter.value_for_string_parameter(
+            self, "/Deployment/github/codestar_arn", 3)
+
+        source = self.setup_code_source(
+            repo_name="tomsitconcepts/{{project_name}}",
+            repo_branch="main",
+            github_codestar_arn=github_codestar_arn
         )
 
         synth = pipelines.ShellStep(
@@ -83,24 +90,28 @@ class TrunkPipelineStack(Stack):
                 ),
             ],
         )
-        # NOTE: can add a POST deploy step to do validation/smoke-testing
 
-        # Output
-        CfnOutput(
-            self, "RepositoryName", value=repo.repository_name
-        )  # what does this do?
+        # Explicitly build the pipeline
+        pipeline.build_pipeline()
 
-    def setup_code_source(
-        self, repo_name, repo_branch
-        ) -> tuple[codecommit.IRepository, pipelines.CodePipelineSource]:
-        '''isolates codecommit specifics, in case we migrate to a different git provider'''
-        repo = codecommit.Repository.from_repository_name(
-            self, "App", repo_name
+        pipeline.pipeline.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["codestar-connections:*"],
+                resources=[github_codestar_arn]
+            )
         )
 
-        source = pipelines.CodePipelineSource.code_commit(repo, repo_branch)
+    def setup_code_source(
+        self, repo_name, repo_branch, github_codestar_arn
+        ) -> pipelines.CodePipelineSource:
+        '''isolation/abstraction of source code repo'''
+        source = pipelines.CodePipelineSource.connection(
+            repo_name,
+            repo_branch,
+            connection_arn=github_codestar_arn
+        )
 
-        return (repo, source)
+        return source
 
     def get_shared_deploy_bucket(self) -> s3.IBucket:
         '''we don't want CDK to proliferate extra buckets and keys'''

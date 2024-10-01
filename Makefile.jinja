@@ -58,12 +58,9 @@ init:
 	cdk synth
 
 commit:
-	scripts/create-codecommit-repo.sh {{generator_version}} {{user_name}}
+	scripts/create-github-repo.sh {{generator_version}} {{user_name}}
 
 deploypipeline:
 	cdk deploy --require-approval never {{project_name | to_camel}}-TrunkPipelineStack
 
-tagtrunk:
-	scripts/tag-trunk.sh {{project_name}} {{project_name | to_camel}}-TrunkPipelineStack
-
-onetime: init unittest commit deploypipeline tagtrunk
+onetime: init unittest commit deploypipeline

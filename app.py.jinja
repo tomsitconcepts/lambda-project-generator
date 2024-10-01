@@ -8,9 +8,9 @@ app = cdk.App()
 
 trunk = TrunkPipelineStack(app, "{{project_name | to_camel}}-TrunkPipelineStack")
 cdk.Tags.of(trunk).add("DEVELOPER", "{{user_name}}")
-cdk.Tags.of(trunk).add("PROJECT", "codecommit://{{project_name}}")
+cdk.Tags.of(trunk).add("PROJECT", "https://github.com/tomsitconcepts/{{project_name}}")
 cdk.Tags.of(trunk).add(
     "PROJECT_GENERATOR",
-    "codecommit://lambda-project-generator --branch v{{generator_version}}")
+    "https://github.com/tomsitconcepts/lambda-project-generator --branch v{{generator_version}}")
 
 app.synth()
